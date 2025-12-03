@@ -8,4 +8,4 @@ To run project:
   ```
   docker compose up --build
   ```
-
+code for opt in logs

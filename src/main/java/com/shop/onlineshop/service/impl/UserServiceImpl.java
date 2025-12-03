@@ -3,13 +3,16 @@ package com.shop.onlineshop.service.impl;
 import com.shop.onlineshop.dataservices.RoleDataService;
 import com.shop.onlineshop.dataservices.UserEntityDataService;
 import com.shop.onlineshop.exceptions.UserAlreadyExistsException;
+import com.shop.onlineshop.models.dto.UserDTO;
 import com.shop.onlineshop.models.entity.Role;
 import com.shop.onlineshop.models.entity.UserEntity;
 import com.shop.onlineshop.models.request.ChangePasswordRequest;
-import com.shop.onlineshop.models.dto.UserDTO;
 import com.shop.onlineshop.models.request.LoginRequest;
+import com.shop.onlineshop.models.request.OtpVerifyRequest;
 import com.shop.onlineshop.models.response.JWTResponse;
+import com.shop.onlineshop.models.response.OtpSentResponse;
 import com.shop.onlineshop.security.service.JWTService;
+import com.shop.onlineshop.service.OtpService;
 import com.shop.onlineshop.service.UserService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
@@ -22,171 +25,185 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
 @Service
 public class UserServiceImpl implements UserService {
-  private final UserEntityDataService userEntityDataService;
-  private final RoleDataService roleDataService;
-  private final PasswordEncoder passwordEncoder;
-  private final AuthenticationManager authManager;
-  private final JWTService jwtService;
 
+    private final UserEntityDataService userData;
+    private final RoleDataService roleData;
+    private final PasswordEncoder passwordEncoder;
+    private final AuthenticationManager authManager;
+    private final JWTService jwtService;
+    private final OtpService otpService;
 
-  @Value( "${onlineshop.app.isproduction}")
-  private boolean isProduction;
+    @Value("${onlineshop.app.isproduction}")
+    private boolean isProduction;
 
-  public UserServiceImpl(UserEntityDataService userEntityDataService,
-                         PasswordEncoder passwordEncoder,
-                         RoleDataService roleDataService,
-                         AuthenticationManager authManager,
-                         JWTService jwtService) {
-    this.userEntityDataService = userEntityDataService;
-    this.passwordEncoder = passwordEncoder;
-    this.roleDataService = roleDataService;
-    this.authManager = authManager;
-    this.jwtService = jwtService;
-  }
-
-  @Override
-  public UserDTO register(UserDTO userDTO) {
-    if(userEntityDataService.existsByUsername(userDTO.getUsername())){
-      System.out.println("Username already exists");
-      throw new UserAlreadyExistsException("Username already exists");
-    }
-    if(userEntityDataService.existsByEmail(userDTO.getEmail())){
-      System.out.println("Email already was registered");
-      throw new UserAlreadyExistsException("Email already was registered");
-    }
-    if(userDTO.getUsername() == null || userDTO.getPassword() == null || userDTO.getEmail() == null){
-      throw new IllegalArgumentException("Invalid username/email/password");
-    }
-    if(userDTO.getPassword().length()<8){
-      throw new IllegalArgumentException("Password must be at least 8 characters long");
-    }
-    UserEntity userEntity = new UserEntity();
-    userEntity.setUsername(userDTO.getUsername());
-    userEntity.setEmail(userDTO.getEmail());
-    userEntity.setPassword(passwordEncoder.encode(userDTO.getPassword()));
-
-    List<Role> userRoles = new ArrayList<>();
-    Role userRole = roleDataService.findByName("ROLE_USER");
-    userRoles.add(userRole);
-    userEntity.setRoles(userRoles);
-
-    userEntityDataService.saveUserEntity(userEntity);
-
-    userDTO.setPassword(null);
-    return userDTO;
-
-  }
-
-  @Override
-  public JWTResponse login(LoginRequest loginRequest, HttpServletResponse response) {
-    try{
-      Authentication authentication = authManager.authenticate(
-        new UsernamePasswordAuthenticationToken(loginRequest.username(), loginRequest.password())
-      );
-      return getJwtResponse(response, authentication);
-    } catch (AuthenticationException e){
-      throw new BadCredentialsException("Invalid username or password");
-    }
-  }
-
-  @Override
-  public void changePassword(ChangePasswordRequest changePasswordRequest){
-    if(changePasswordRequest.oldPassword() == null || changePasswordRequest.newPassword() == null){
-      throw new IllegalArgumentException("Invalid old password or new password");
-    }if(changePasswordRequest.oldPassword().equals(changePasswordRequest.newPassword())){
-      throw new IllegalArgumentException("Old password and new password are the same");
-    }
-    if(changePasswordRequest.newPassword().length() < 8){
-      throw new IllegalArgumentException("Password must be at least 8 characters long");
-    }
-    UserEntity userEntity = getCurrentUser();
-    if(!passwordEncoder.matches(changePasswordRequest.oldPassword(), userEntity.getPassword())){
-      throw new BadCredentialsException("Invalid old password");
-    }
-    if(passwordEncoder.matches(changePasswordRequest.newPassword(), userEntity.getPassword())){
-      throw new IllegalArgumentException("New password must be different from old password");
-    }
-    userEntity.setPassword(passwordEncoder.encode(changePasswordRequest.newPassword()));
-    userEntityDataService.updateUserEntity(userEntity);
-  }
-
-  @Override
-  public void logout(HttpServletResponse response){
-    Cookie cookie = new Cookie("refresh_token", null);
-    cookie.setHttpOnly(true);
-    cookie.setSecure(isProduction);
-    cookie.setPath("/api/v1");
-    cookie.setMaxAge(0);
-    response.addCookie(cookie);
-  }
-
-  @Override
-  public JWTResponse refreshToken(HttpServletRequest request,
-                                  HttpServletResponse response){
-    try{
-      String refreshToken = getRefreshTokenFromCookie(request);
-      if(refreshToken == null){
-        log.warn("Refresh token is null");
-        throw new BadCredentialsException("Refresh token is missing");
-      }
-      String username = jwtService.extractUserName(refreshToken);
-      if(username == null || jwtService.isTokenExpired(refreshToken)){
-        log.warn("Refresh attempt failed for user={} from IP={}", username, request.getRemoteAddr());
-        throw new BadCredentialsException("Invalid refresh token");
-      }
-      Authentication authentication = new UsernamePasswordAuthenticationToken(username, null, null);
-
-      return getJwtResponse(response, authentication);
-
-    } catch(Exception e){
-      throw new BadCredentialsException("Invalid refresh token");
+    public UserServiceImpl(
+            UserEntityDataService userData,
+            RoleDataService roleData,
+            PasswordEncoder passwordEncoder,
+            AuthenticationManager authManager,
+            JWTService jwtService,
+            OtpService otpService
+    ) {
+        this.userData = userData;
+        this.roleData = roleData;
+        this.passwordEncoder = passwordEncoder;
+        this.authManager = authManager;
+        this.jwtService = jwtService;
+        this.otpService = otpService;
     }
 
-  }
+    @Override
+    public UserDTO register(UserDTO dto) {
 
-  @Override
-  public UserEntity getCurrentUser(){
-    String username = SecurityContextHolder.getContext().getAuthentication().getName();
-    return userEntityDataService.getUserEntityByUsernameOrThrow(username);
-  }
-
-  private JWTResponse getJwtResponse(HttpServletResponse response, Authentication authentication) {
-    String newAccessToken = jwtService.generateToken(authentication);
-    String newRefreshToken = jwtService.generateRefreshToken(authentication);
-    ResponseCookie refreshCookie = ResponseCookie.from("refresh_token", newRefreshToken)
-      .httpOnly(true)
-      .secure(isProduction)
-      .path("/api/v1")
-      .sameSite(isProduction ? "Strict" : "Lax")
-      .maxAge(Duration.ofDays(7))
-      .build();
-    response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
-    return new JWTResponse("Bearer ", newAccessToken);
-  }
-
-
-  private String getRefreshTokenFromCookie(HttpServletRequest request) {
-    Cookie[] cookies = request.getCookies();
-    if (cookies != null) {
-      for (Cookie cookie : cookies) {
-        if ("refresh_token".equals(cookie.getName())) {
-          return cookie.getValue();
+        if (userData.existsByUsername(dto.getUsername())) {
+            throw new UserAlreadyExistsException("Username already exists");
         }
-      }
-    }
-    return null;
-  }
+        if (userData.existsByEmail(dto.getEmail())) {
+            throw new UserAlreadyExistsException("Email already registered");
+        }
+        if (dto.getPassword().length() < 8) {
+            throw new IllegalArgumentException("Password must be at least 8 characters");
+        }
 
+        UserEntity user = new UserEntity();
+        user.setUsername(dto.getUsername());
+        user.setEmail(dto.getEmail());
+        user.setPassword(passwordEncoder.encode(dto.getPassword()));
+
+        Role role = roleData.findByName("ROLE_USER");
+        user.setRoles(List.of(role));
+
+        userData.saveUserEntity(user);
+
+        dto.setPassword(null);
+        return dto;
+    }
+
+
+    @Override
+    public OtpSentResponse login(LoginRequest request, HttpServletResponse response) {
+
+        try {
+            authManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            request.username(),
+                            request.password()
+                    )
+            );
+        } catch (Exception e) {
+            throw new BadCredentialsException("Invalid username or password");
+        }
+
+        UserEntity user = userData.getUserEntityByUsernameOrThrow(request.username());
+        otpService.generateAndAssign(user);
+        userData.updateUserEntity(user);
+
+        return new OtpSentResponse("OTP sent", 300);
+    }
+
+    @Override
+    public JWTResponse verifyOtp(OtpVerifyRequest request, HttpServletResponse response) {
+
+        UserEntity user = userData.getUserEntityByUsernameOrThrow(request.username());
+
+        if (!otpService.verify(user, request.otp())) {
+            throw new BadCredentialsException("Invalid or expired OTP");
+        }
+
+        otpService.clear(user);
+        userData.updateUserEntity(user);
+
+        Authentication auth =
+                new UsernamePasswordAuthenticationToken(
+                        user.getUsername(),
+                        null,
+                        user.getRoles().stream()
+                                .map(r -> new org.springframework.security.core.authority.SimpleGrantedAuthority(r.getName()))
+                                .toList()
+                );
+
+        return issueTokens(response, auth);
+    }
+
+    @Override
+    public void changePassword(ChangePasswordRequest req) {
+
+        UserEntity user = getCurrentUser();
+
+        if (!passwordEncoder.matches(req.oldPassword(), user.getPassword())) {
+            throw new BadCredentialsException("Invalid old password");
+        }
+        if (req.newPassword().length() < 8) {
+            throw new IllegalArgumentException("Password too short");
+        }
+
+        user.setPassword(passwordEncoder.encode(req.newPassword()));
+        userData.updateUserEntity(user);
+    }
+
+    @Override
+    public void logout(HttpServletResponse response) {
+        Cookie cookie = new Cookie("refresh_token", null);
+        cookie.setHttpOnly(true);
+        cookie.setSecure(isProduction);
+        cookie.setPath("/api/v1");
+        cookie.setMaxAge(0);
+        response.addCookie(cookie);
+    }
+
+    @Override
+    public JWTResponse refreshToken(HttpServletRequest request, HttpServletResponse response) {
+
+        String refresh = extractRefreshToken(request);
+        if (refresh == null || jwtService.isTokenExpired(refresh)) {
+            throw new BadCredentialsException("Invalid refresh token");
+        }
+
+        String username = jwtService.extractUserName(refresh);
+        Authentication auth = new UsernamePasswordAuthenticationToken(username, null, null);
+
+        return issueTokens(response, auth);
+    }
+
+    @Override
+    public UserEntity getCurrentUser() {
+        String username =
+                SecurityContextHolder.getContext().getAuthentication().getName();
+        return userData.getUserEntityByUsernameOrThrow(username);
+    }
+
+    private JWTResponse issueTokens(HttpServletResponse response, Authentication auth) {
+
+        String access = jwtService.generateToken(auth);
+        String refresh = jwtService.generateRefreshToken(auth);
+
+        ResponseCookie cookie = ResponseCookie.from("refresh_token", refresh)
+                .httpOnly(true)
+                .secure(isProduction)
+                .path("/api/v1")
+                .sameSite(isProduction ? "Strict" : "Lax")
+                .maxAge(Duration.ofDays(7))
+                .build();
+
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+        return new JWTResponse("Bearer", access);
+    }
+
+    private String extractRefreshToken(HttpServletRequest request) {
+        if (request.getCookies() == null) return null;
+        for (Cookie c : request.getCookies()) {
+            if ("refresh_token".equals(c.getName())) return c.getValue();
+        }
+        return null;
+    }
 }
