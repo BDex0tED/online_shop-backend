@@ -1,51 +1,51 @@
 package com.shop.onlineshop.security.service;
 
 import com.shop.onlineshop.security.SecurityConstants;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.stereotype.Service;
-
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
-import java.util.*;
+import java.util.Date;
+import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
 public class JWTService {
 
-  @Value( "${onlineshop.app.secret}")
-  private String secretkey;
+  @Value("${onlineshop.app.secret}")
+  private String secretKey;
 
-  public JWTService() {}
+  private SecretKey getKey() {
+    byte[] keyBytes = Decoders.BASE64.decode(secretKey);
+    return Keys.hmacShaKeyFor(keyBytes);
+  }
+
   public String generateToken(Authentication authentication) {
     String username = authentication.getName();
     List<String> roles = authentication.getAuthorities().stream()
       .map(GrantedAuthority::getAuthority)
       .collect(Collectors.toList());
 
-    Date currentDate = new Date();
-    Date expirationDate = new Date(currentDate.getTime() + SecurityConstants.JWT_EXPIRATION_TIME);
+    Date now = new Date();
+    Date expiry = new Date(now.getTime() + SecurityConstants.JWT_EXPIRATION_TIME);
 
     return Jwts.builder()
       .subject(username)
       .claim("roles", roles)
-      .issuedAt(currentDate)
-      .expiration(expirationDate)
+      .issuedAt(now)
+      .expiration(expiry)
       .signWith(getKey())
       .compact();
   }
-  public String generateRefreshToken(Authentication authentication) {
-    String username = authentication.getName();
-    Date currentDate = new Date();
-    Date expirationDate = new Date(currentDate.getTime() + SecurityConstants.JWT_REFRESH_EXPIRATION_TIME);
 
+  public String generateRefreshToken(Authentication authentication) {
     return Jwts.builder()
       .subject(username)
       .issuedAt(currentDate)
