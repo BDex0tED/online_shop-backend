@@ -46,4 +46,7 @@ public class UserEntity {
 
     @Column(name = "otp_expires_at")
     private LocalDateTime otpExpiresAt;
+
+    @Column(name = "otp_attempts")
+    private int otpAttempts = 0;
 }

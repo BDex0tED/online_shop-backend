@@ -8,6 +8,7 @@ import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
@@ -46,6 +47,10 @@ public class JWTService {
   }
 
   public String generateRefreshToken(Authentication authentication) {
+    String username = authentication.getName();
+    Date currentDate = new Date();
+    Date expirationDate = new Date(currentDate.getTime() + SecurityConstants.JWT_REFRESH_EXPIRATION_TIME);
+
     return Jwts.builder()
       .subject(username)
       .issuedAt(currentDate)
@@ -72,11 +77,6 @@ public class JWTService {
 //                .compact();
 //
 //    }
-
-  private SecretKey getKey() {
-    byte[] keyBytes = Decoders.BASE64.decode(secretkey);
-    return Keys.hmacShaKeyFor(keyBytes);
-  }
 
   public String extractUserName(String token) {
     // extract the username from jwt token

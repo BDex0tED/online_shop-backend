@@ -13,9 +13,11 @@ import java.util.concurrent.ThreadLocalRandom;
 public class OtpService {
 
     private final PasswordEncoder passwordEncoder;
+    private final EmailService emailService;
 
-    public OtpService(PasswordEncoder passwordEncoder) {
+    public OtpService(PasswordEncoder passwordEncoder, EmailService emailService) {
         this.passwordEncoder = passwordEncoder;
+        this.emailService = emailService;
     }
 
     public void generateAndAssign(UserEntity user) {
@@ -25,8 +27,11 @@ public class OtpService {
 
         user.setOtpCode(passwordEncoder.encode(otp));
         user.setOtpExpiresAt(LocalDateTime.now().plusMinutes(5));
+        user.setOtpAttempts(0);
 
-        log.warn("OTP for {} = {}", user.getUsername(), otp);
+        emailService.sendOtpEmail(user.getEmail(), otp);
+
+        log.info("OTP generated for user {}", user.getUsername());
     }
 
     public boolean verify(UserEntity user, String rawOtp) {
@@ -36,11 +41,23 @@ public class OtpService {
         if (user.getOtpExpiresAt().isBefore(LocalDateTime.now())) {
             return false;
         }
-        return passwordEncoder.matches(rawOtp, user.getOtpCode());
+        if (user.getOtpAttempts() >= 5) {
+            log.warn("User {} exceeded OTP attempts", user.getUsername());
+            return false;
+        }
+
+        if (!passwordEncoder.matches(rawOtp, user.getOtpCode())) {
+            user.setOtpAttempts(user.getOtpAttempts() + 1);
+            return false;
+        }
+
+        user.setOtpAttempts(0);
+        return true;
     }
 
     public void clear(UserEntity user) {
         user.setOtpCode(null);
         user.setOtpExpiresAt(null);
+        user.setOtpAttempts(0);
     }
 }

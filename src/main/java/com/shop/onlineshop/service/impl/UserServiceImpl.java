@@ -117,6 +117,12 @@ public class UserServiceImpl implements UserService {
         UserEntity user = userData.getUserEntityByUsernameOrThrow(request.username());
 
         if (!otpService.verify(user, request.otp())) {
+            userData.updateUserEntity(user);
+
+            if (user.getOtpAttempts() >= 5) {
+                throw new BadCredentialsException("Too many OTP attempts. Request a new OTP.");
+            }
+
             throw new BadCredentialsException("Invalid or expired OTP");
         }
 

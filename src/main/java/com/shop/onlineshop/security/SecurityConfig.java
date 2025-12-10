@@ -43,6 +43,7 @@ public class SecurityConfig {
         .requestMatchers(
           "/api/v1/register",
           "/api/v1/login",
+          "/api/v1/login/otp",
           "/api/v1/refresh-token",
           "/ping",
           "/swagger-ui/**",
@@ -75,8 +76,7 @@ public class SecurityConfig {
 
   @Bean
   public AuthenticationProvider authenticationProvider() {
-    DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
-    provider.setUserDetailsService(customUserDetailsService);
+    DaoAuthenticationProvider provider = new DaoAuthenticationProvider(customUserDetailsService);
     provider.setPasswordEncoder(passwordEncoder());
     return provider;
   }

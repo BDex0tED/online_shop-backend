@@ -1,4 +1,4 @@
-package com.shop.online_shop;
+package com.shop.onlineshop;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -9,5 +9,5 @@ class OnlineShopApplicationTests {
   @Test
   void contextLoads() {
   }
-
 }
+
