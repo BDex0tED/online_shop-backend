@@ -1,6 +1,7 @@
 package com.shop.onlineshop.controller;
 
 import com.shop.onlineshop.models.dto.UserDTO;
+import com.shop.onlineshop.models.request.ChangePasswordRequest;
 import com.shop.onlineshop.models.request.LoginRequest;
 import com.shop.onlineshop.models.request.OtpVerifyRequest;
 import com.shop.onlineshop.models.response.JWTResponse;
@@ -49,4 +50,17 @@ public class UserEntityController {
     ) {
         return ResponseEntity.ok(userService.refreshToken(request, response));
     }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<String> changePassword(@RequestBody ChangePasswordRequest request) {
+        userService.changePassword(request);
+        return ResponseEntity.ok("Password changed successfully");
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<String> logout(HttpServletResponse response) {
+        userService.logout(response);
+        return ResponseEntity.ok("Logout successful");
+    }
 }
+
