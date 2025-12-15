@@ -5,6 +5,7 @@ import com.shop.onlineshop.models.request.ChangePasswordRequest;
 import com.shop.onlineshop.models.request.LoginRequest;
 import com.shop.onlineshop.models.request.OtpVerifyRequest;
 import com.shop.onlineshop.models.response.JWTResponse;
+import com.shop.onlineshop.models.response.RegisterResponse;
 import com.shop.onlineshop.models.response.OtpSentResponse;
 import com.shop.onlineshop.service.impl.UserServiceImpl;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,7 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping("/api/auth")
 public class UserEntityController {
 
     private final UserServiceImpl userService;
@@ -26,7 +27,7 @@ public class UserEntityController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<UserDTO> register(@RequestBody UserDTO dto) {
+    public ResponseEntity<RegisterResponse> register(@RequestBody UserDTO dto) {
         return ResponseEntity.status(201).body(userService.register(dto));
     }
 
@@ -37,18 +38,9 @@ public class UserEntityController {
 
     @PostMapping("/login/otp")
     public ResponseEntity<JWTResponse> verifyOtp(
-            @RequestBody OtpVerifyRequest request,
-            HttpServletResponse response
+            @RequestBody OtpVerifyRequest request
     ) {
-        return ResponseEntity.ok(userService.verifyOtp(request, response));
-    }
-
-    @PostMapping("/refresh-token")
-    public ResponseEntity<JWTResponse> refresh(
-            HttpServletRequest request,
-            HttpServletResponse response
-    ) {
-        return ResponseEntity.ok(userService.refreshToken(request, response));
+        return ResponseEntity.ok(userService.verifyOtp(request));
     }
 
     @PostMapping("/change-password")

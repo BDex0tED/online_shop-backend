@@ -3,6 +3,7 @@ package com.shop.onlineshop.service.impl;
 import com.shop.onlineshop.dataservices.RoleDataService;
 import com.shop.onlineshop.dataservices.UserEntityDataService;
 import com.shop.onlineshop.exceptions.UserAlreadyExistsException;
+import com.shop.onlineshop.mapper.UserMapper;
 import com.shop.onlineshop.models.dto.UserDTO;
 import com.shop.onlineshop.models.entity.Role;
 import com.shop.onlineshop.models.entity.UserEntity;
@@ -10,7 +11,9 @@ import com.shop.onlineshop.models.request.ChangePasswordRequest;
 import com.shop.onlineshop.models.request.LoginRequest;
 import com.shop.onlineshop.models.request.OtpVerifyRequest;
 import com.shop.onlineshop.models.response.JWTResponse;
+import com.shop.onlineshop.models.response.RegisterResponse;
 import com.shop.onlineshop.models.response.OtpSentResponse;
+import com.shop.onlineshop.models.response.UserResponse;
 import com.shop.onlineshop.security.service.JWTService;
 import com.shop.onlineshop.service.OtpService;
 import com.shop.onlineshop.service.UserService;
@@ -29,6 +32,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import javax.imageio.spi.RegisterableService;
 import java.time.Duration;
 import java.util.List;
 
@@ -37,6 +41,8 @@ import java.util.List;
 public class UserServiceImpl implements UserService {
 
     private final UserEntityDataService userData;
+    private final UserMapper userMapper;
+
     private final RoleDataService roleData;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authManager;
@@ -48,6 +54,7 @@ public class UserServiceImpl implements UserService {
 
     public UserServiceImpl(
             UserEntityDataService userData,
+            UserMapper userMapper,
             RoleDataService roleData,
             PasswordEncoder passwordEncoder,
             AuthenticationManager authManager,
@@ -55,6 +62,7 @@ public class UserServiceImpl implements UserService {
             OtpService otpService
     ) {
         this.userData = userData;
+        this.userMapper=userMapper;
         this.roleData = roleData;
         this.passwordEncoder = passwordEncoder;
         this.authManager = authManager;
@@ -63,8 +71,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public UserDTO register(UserDTO dto) {
-
+    public RegisterResponse register(UserDTO dto) {
         if (userData.existsByUsername(dto.getUsername())) {
             throw new UserAlreadyExistsException("Username already exists");
         }
@@ -85,8 +92,12 @@ public class UserServiceImpl implements UserService {
 
         userData.saveUserEntity(user);
 
-        dto.setPassword(null);
-        return dto;
+        UserResponse userResponse = userMapper.toUserResponse(user);
+        JWTResponse jwt = issueTokens(authManager.authenticate(new UsernamePasswordAuthenticationToken(
+                dto.getUsername(),dto.getPassword()
+        )));
+
+        return new RegisterResponse("Registration successful",userResponse,jwt.accessToken(),jwt.refreshToken());
     }
 
 
@@ -112,7 +123,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public JWTResponse verifyOtp(OtpVerifyRequest request, HttpServletResponse response) {
+    public JWTResponse verifyOtp(OtpVerifyRequest request) {
 
         UserEntity user = userData.getUserEntityByUsernameOrThrow(request.username());
 
@@ -138,7 +149,7 @@ public class UserServiceImpl implements UserService {
                                 .toList()
                 );
 
-        return issueTokens(response, auth);
+        return issueTokens(auth);
     }
 
     @Override
@@ -167,19 +178,6 @@ public class UserServiceImpl implements UserService {
         response.addCookie(cookie);
     }
 
-    @Override
-    public JWTResponse refreshToken(HttpServletRequest request, HttpServletResponse response) {
-
-        String refresh = extractRefreshToken(request);
-        if (refresh == null || jwtService.isTokenExpired(refresh)) {
-            throw new BadCredentialsException("Invalid refresh token");
-        }
-
-        String username = jwtService.extractUserName(refresh);
-        Authentication auth = new UsernamePasswordAuthenticationToken(username, null, null);
-
-        return issueTokens(response, auth);
-    }
 
     @Override
     public UserEntity getCurrentUser() {
@@ -188,28 +186,11 @@ public class UserServiceImpl implements UserService {
         return userData.getUserEntityByUsernameOrThrow(username);
     }
 
-    private JWTResponse issueTokens(HttpServletResponse response, Authentication auth) {
-
+    private JWTResponse issueTokens(Authentication auth) {
         String access = jwtService.generateToken(auth);
         String refresh = jwtService.generateRefreshToken(auth);
 
-        ResponseCookie cookie = ResponseCookie.from("refresh_token", refresh)
-                .httpOnly(true)
-                .secure(isProduction)
-                .path("/api/v1")
-                .sameSite(isProduction ? "Strict" : "Lax")
-                .maxAge(Duration.ofDays(7))
-                .build();
-
-        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
-        return new JWTResponse("Bearer", access);
+        return new JWTResponse(access,refresh);
     }
 
-    private String extractRefreshToken(HttpServletRequest request) {
-        if (request.getCookies() == null) return null;
-        for (Cookie c : request.getCookies()) {
-            if ("refresh_token".equals(c.getName())) return c.getValue();
-        }
-        return null;
-    }
 }

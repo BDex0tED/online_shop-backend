@@ -1,4 +1,4 @@
 package com.shop.onlineshop.models.response;
 
-public record JWTResponse(String tokenType,
-                          String accessToken) {}
+public record JWTResponse(String accessToken, String refreshToken) {
+}

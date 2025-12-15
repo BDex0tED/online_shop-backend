@@ -41,17 +41,17 @@ public class SecurityConfig {
       .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
       .authorizeHttpRequests(auth -> auth
         .requestMatchers(
-          "/api/v1/register",
-          "/api/v1/login",
-          "/api/v1/login/otp",
-          "/api/v1/refresh-token",
+          "/api/auth/register",
+          "/api/auth/login",
+          "/api/auth/login/otp",
+          "/api/auth/refresh-token",
           "/ping",
           "/swagger-ui/**",
           "/v3/api-docs/**"
         ).permitAll()
         .anyRequest().authenticated()
       )
-      .authenticationProvider(authenticationProvider())   // <- важно
+      .authenticationProvider(authenticationProvider())
       .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
     return http.build();

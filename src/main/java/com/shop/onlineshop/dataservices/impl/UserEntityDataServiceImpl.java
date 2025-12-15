@@ -42,9 +42,13 @@ public class UserEntityDataServiceImpl implements UserEntityDataService {
   @Override
   @Transactional()
   public void saveUserEntity(UserEntity userEntity) {
-    if(userEntityRepo.existsByUsername(userEntity.getUsername())){
-      throw new UserAlreadyExistsException("Username: " + userEntity.getUsername() + " exists");
+    if(existsByUsername(userEntity.getUsername())){
+      throw new UserAlreadyExistsException("Username: " + userEntity.getUsername() + " already exists");
     }
+    if(existsByEmail(userEntity.getEmail())){
+      throw new UserAlreadyExistsException("Email:" + userEntity.getEmail() + " already exists");
+    }
+    if(!userEntity.getEmail().contains("@")) throw new IllegalArgumentException("Invalid email format");
     userEntityRepo.save(userEntity);
   }
 
