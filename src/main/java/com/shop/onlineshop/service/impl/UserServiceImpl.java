@@ -34,6 +34,7 @@ import org.springframework.stereotype.Service;
 
 import javax.imageio.spi.RegisterableService;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Slf4j
@@ -72,7 +73,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public RegisterResponse register(UserDTO dto) {
-        if (userData.existsByUsername(dto.getUsername())) {
+        if (userData.existsByUsername(dto.getFullName())) {
             throw new UserAlreadyExistsException("Username already exists");
         }
         if (userData.existsByEmail(dto.getEmail())) {
@@ -83,9 +84,10 @@ public class UserServiceImpl implements UserService {
         }
 
         UserEntity user = new UserEntity();
-        user.setUsername(dto.getUsername());
+        user.setUsername(dto.getFullName());
         user.setEmail(dto.getEmail());
         user.setPassword(passwordEncoder.encode(dto.getPassword()));
+        user.setCreatedAt(LocalDateTime.now());
 
         Role role = roleData.findByName("ROLE_USER");
         user.setRoles(List.of(role));
@@ -94,16 +96,15 @@ public class UserServiceImpl implements UserService {
 
         UserResponse userResponse = userMapper.toUserResponse(user);
         JWTResponse jwt = issueTokens(authManager.authenticate(new UsernamePasswordAuthenticationToken(
-                dto.getUsername(),dto.getPassword()
+                dto.getFullName(),dto.getPassword()
         )));
 
-        return new RegisterResponse("Registration successful",userResponse,jwt.accessToken(),jwt.refreshToken());
+        return new RegisterResponse("Registration successful" ,userResponse,jwt.accessToken(),jwt.refreshToken());
     }
 
 
     @Override
     public OtpSentResponse login(LoginRequest request, HttpServletResponse response) {
-
         try {
             authManager.authenticate(
                     new UsernamePasswordAuthenticationToken(

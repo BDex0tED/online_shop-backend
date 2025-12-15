@@ -9,6 +9,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+
 @Component
 public class RoleSeeder implements CommandLineRunner {
   private final PasswordEncoder passwordEncoder;
@@ -46,6 +48,7 @@ public class RoleSeeder implements CommandLineRunner {
         user.setEmail("okuulib.admin@okuulib.com");
         user.setPassword(passwordEncoder.encode(ADMIN_PASSWORD));
         user.setRoles(new java.util.ArrayList<>(java.util.Collections.singletonList(role_admin)));
+        user.setCreatedAt(LocalDateTime.now());
         userRepo.save(user);
       } else {
         var user = userRepo.findByUsername(ADMIN_USERNAME).orElseThrow();
