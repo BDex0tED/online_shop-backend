@@ -1,15 +1,15 @@
 package com.shop.onlineshop.controller;
 
-import com.shop.onlineshop.models.dto.UserDTO;
 import com.shop.onlineshop.models.request.ChangePasswordRequest;
 import com.shop.onlineshop.models.request.LoginRequest;
 import com.shop.onlineshop.models.request.OtpVerifyRequest;
+import com.shop.onlineshop.models.request.RegisterRequest;
 import com.shop.onlineshop.models.response.JWTResponse;
-import com.shop.onlineshop.models.response.RegisterResponse;
 import com.shop.onlineshop.models.response.OtpSentResponse;
+import com.shop.onlineshop.models.response.RegistrationResponse;
 import com.shop.onlineshop.service.impl.UserServiceImpl;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping({"/api/v1", "/api/auth"})
 public class UserEntityController {
 
     private final UserServiceImpl userService;
@@ -27,8 +27,8 @@ public class UserEntityController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<RegisterResponse> register(@RequestBody UserDTO dto) {
-        return ResponseEntity.status(201).body(userService.register(dto));
+    public ResponseEntity<RegistrationResponse> register(@Valid @RequestBody RegisterRequest request) {
+        return ResponseEntity.status(201).body(userService.register(request));
     }
 
     @PostMapping("/login")

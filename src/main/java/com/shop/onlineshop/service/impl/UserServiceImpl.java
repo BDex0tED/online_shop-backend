@@ -3,37 +3,31 @@ package com.shop.onlineshop.service.impl;
 import com.shop.onlineshop.dataservices.RoleDataService;
 import com.shop.onlineshop.dataservices.UserEntityDataService;
 import com.shop.onlineshop.exceptions.UserAlreadyExistsException;
-import com.shop.onlineshop.mapper.UserMapper;
-import com.shop.onlineshop.models.dto.UserDTO;
 import com.shop.onlineshop.models.entity.Role;
 import com.shop.onlineshop.models.entity.UserEntity;
 import com.shop.onlineshop.models.request.ChangePasswordRequest;
 import com.shop.onlineshop.models.request.LoginRequest;
 import com.shop.onlineshop.models.request.OtpVerifyRequest;
+import com.shop.onlineshop.models.request.RegisterRequest;
 import com.shop.onlineshop.models.response.JWTResponse;
-import com.shop.onlineshop.models.response.RegisterResponse;
 import com.shop.onlineshop.models.response.OtpSentResponse;
-import com.shop.onlineshop.models.response.UserResponse;
+import com.shop.onlineshop.models.response.RegistrationResponse;
 import com.shop.onlineshop.security.service.JWTService;
 import com.shop.onlineshop.service.OtpService;
 import com.shop.onlineshop.service.UserService;
 import jakarta.servlet.http.Cookie;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.ResponseCookie;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import javax.imageio.spi.RegisterableService;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -42,7 +36,6 @@ import java.util.List;
 public class UserServiceImpl implements UserService {
 
     private final UserEntityDataService userData;
-    private final UserMapper userMapper;
 
     private final RoleDataService roleData;
     private final PasswordEncoder passwordEncoder;
@@ -55,7 +48,6 @@ public class UserServiceImpl implements UserService {
 
     public UserServiceImpl(
             UserEntityDataService userData,
-            UserMapper userMapper,
             RoleDataService roleData,
             PasswordEncoder passwordEncoder,
             AuthenticationManager authManager,
@@ -63,7 +55,6 @@ public class UserServiceImpl implements UserService {
             OtpService otpService
     ) {
         this.userData = userData;
-        this.userMapper=userMapper;
         this.roleData = roleData;
         this.passwordEncoder = passwordEncoder;
         this.authManager = authManager;
@@ -72,21 +63,20 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public RegisterResponse register(UserDTO dto) {
-        if (userData.existsByUsername(dto.getFullName())) {
-            throw new UserAlreadyExistsException("Username already exists");
+    public RegistrationResponse register(RegisterRequest req) {
+        if (!req.password().equals(req.confirmPassword())) {
+            throw new IllegalArgumentException("Passwords do not match");
         }
-        if (userData.existsByEmail(dto.getEmail())) {
+
+        if (userData.existsByEmail(req.email())) {
             throw new UserAlreadyExistsException("Email already registered");
-        }
-        if (dto.getPassword().length() < 8) {
-            throw new IllegalArgumentException("Password must be at least 8 characters");
         }
 
         UserEntity user = new UserEntity();
-        user.setUsername(dto.getFullName());
-        user.setEmail(dto.getEmail());
-        user.setPassword(passwordEncoder.encode(dto.getPassword()));
+        user.setFullName(req.fullName());
+        user.setEmail(req.email());
+        user.setUsername(req.email());
+        user.setPassword(passwordEncoder.encode(req.password()));
         user.setCreatedAt(LocalDateTime.now());
 
         Role role = roleData.findByName("ROLE_USER");
@@ -94,12 +84,27 @@ public class UserServiceImpl implements UserService {
 
         userData.saveUserEntity(user);
 
-        UserResponse userResponse = userMapper.toUserResponse(user);
-        JWTResponse jwt = issueTokens(authManager.authenticate(new UsernamePasswordAuthenticationToken(
-                dto.getFullName(),dto.getPassword()
-        )));
+        Authentication auth =
+                new UsernamePasswordAuthenticationToken(
+                        user.getUsername(),
+                        null,
+                        user.getRoles().stream()
+                                .map(r -> new SimpleGrantedAuthority(r.getName()))
+                                .toList()
+                );
 
-        return new RegisterResponse("Registration successful" ,userResponse,jwt.accessToken(),jwt.refreshToken());
+        JWTResponse jwt = issueTokens(auth);
+
+        return new RegistrationResponse(
+                "Registration successful",
+                new RegistrationResponse.User(
+                        user.getId(),
+                        user.getFullName(),
+                        user.getEmail()
+                ),
+                jwt.accessToken(),
+                jwt.refreshToken()
+        );
     }
 
 
