@@ -5,7 +5,7 @@ import com.shop.onlineshop.models.request.LoginRequest;
 import com.shop.onlineshop.models.request.OtpVerifyRequest;
 import com.shop.onlineshop.models.request.RegisterRequest;
 import com.shop.onlineshop.models.response.JWTResponse;
-import com.shop.onlineshop.models.response.OtpSentResponse;
+import com.shop.onlineshop.models.response.LoginResponse;
 import com.shop.onlineshop.models.response.RegistrationResponse;
 import com.shop.onlineshop.service.impl.UserServiceImpl;
 import jakarta.servlet.http.HttpServletResponse;
@@ -32,7 +32,7 @@ public class UserEntityController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<OtpSentResponse> login(@RequestBody LoginRequest request, HttpServletResponse response) {
+    public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request, HttpServletResponse response) {
         return ResponseEntity.ok(userService.login(request,response));
     }
 

@@ -10,7 +10,7 @@ import com.shop.onlineshop.models.request.LoginRequest;
 import com.shop.onlineshop.models.request.OtpVerifyRequest;
 import com.shop.onlineshop.models.request.RegisterRequest;
 import com.shop.onlineshop.models.response.JWTResponse;
-import com.shop.onlineshop.models.response.OtpSentResponse;
+import com.shop.onlineshop.models.response.LoginResponse;
 import com.shop.onlineshop.models.response.RegistrationResponse;
 import com.shop.onlineshop.security.service.JWTService;
 import com.shop.onlineshop.service.OtpService;
@@ -109,7 +109,7 @@ public class UserServiceImpl implements UserService {
 
 
     @Override
-    public OtpSentResponse login(LoginRequest request, HttpServletResponse response) {
+    public LoginResponse login(LoginRequest request, HttpServletResponse response) {
         try {
             authManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
@@ -122,10 +122,37 @@ public class UserServiceImpl implements UserService {
         }
 
         UserEntity user = userData.getUserEntityByUsernameOrThrow(request.username());
+
+        // If user has already successfully verified OTP before, do not send OTP again, just issue JWT tokens
+        if (user.isVerified()) {
+            Authentication auth =
+                    new UsernamePasswordAuthenticationToken(
+                            user.getUsername(),
+                            null,
+                            user.getRoles().stream()
+                                    .map(r -> new SimpleGrantedAuthority(r.getName()))
+                                    .toList()
+                    );
+
+            JWTResponse jwt = issueTokens(auth);
+
+            return new LoginResponse(
+                    "Login successful",
+                    null,
+                    jwt.accessToken(),
+                    jwt.refreshToken()
+            );
+        }
+
         otpService.generateAndAssign(user);
         userData.updateUserEntity(user);
 
-        return new OtpSentResponse("OTP sent", 300);
+        return new LoginResponse(
+                "OTP sent",
+                300,
+                null,
+                null
+        );
     }
 
     @Override
@@ -144,6 +171,10 @@ public class UserServiceImpl implements UserService {
         }
 
         otpService.clear(user);
+        userData.updateUserEntity(user);
+
+        // Mark user as verified after successful OTP verification
+        user.setVerified(true);
         userData.updateUserEntity(user);
 
         Authentication auth =

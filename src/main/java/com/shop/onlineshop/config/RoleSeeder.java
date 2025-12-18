@@ -46,9 +46,13 @@ public class RoleSeeder implements CommandLineRunner {
         var user = new UserEntity();
         user.setUsername(ADMIN_USERNAME);
         user.setEmail("okuulib.admin@okuulib.com");
+        user.setFullName("System Administrator");
         user.setPassword(passwordEncoder.encode(ADMIN_PASSWORD));
         user.setRoles(new java.util.ArrayList<>(java.util.Collections.singletonList(role_admin)));
         user.setCreatedAt(LocalDateTime.now());
+        // Admin should be considered verified and not require OTP
+        user.setVerified(true);
+        user.setOtpEnabled(false);
         userRepo.save(user);
       } else {
         var user = userRepo.findByUsername(ADMIN_USERNAME).orElseThrow();
@@ -56,8 +60,11 @@ public class RoleSeeder implements CommandLineRunner {
           var roles = new java.util.ArrayList<>(user.getRoles());
           roles.add(role_admin);
           user.setRoles(roles);
-          userRepo.save(user);
         }
+        // Ensure existing admin user is also marked as verified and OTP disabled
+        user.setVerified(true);
+        user.setOtpEnabled(false);
+        userRepo.save(user);
       }
     }
   }
