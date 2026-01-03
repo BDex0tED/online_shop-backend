@@ -5,7 +5,7 @@ services:
   build: .
   container_name: shop_backend
   ports:
-   - "8080:8080"
+   - "5438:5438"
   depends_on:
    - db
   environment:
